@@ -1,75 +1,116 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Dapper;
+using Microsoft.AspNetCore.Mvc;
+using New_folder.Repositories;
+using New_folder.Services;
+using Npgsql;
 
 namespace New_folder.Controllers;
 
 public class StudentsController : ControllerBase
 {
-    public static List<Student> Students = new List<Student>();
+    
+    private readonly StudentService _studentService;
+    private readonly StudentRepository _studentRepository;
+    
+    public StudentsController(StudentService studentService, StudentRepository studentRepository)
+    {
+        _studentService = studentService;
+        _studentRepository = studentRepository;
+    }
+
+    
 
     [HttpPost("/api/student")]
-    public IActionResult Create([FromBody] StudentDto studentDto)
+    public async Task<IActionResult> Create([FromBody] StudentDto studentDto)
     {
-        var student = new Student
+        try
         {
-            Id = Students.Count + 1,
-            FirstName = studentDto.FirstName,
-            LastName = studentDto.LastName,
-            Email = studentDto.Email
-        };
+            await _studentService.CreateAsync(studentDto);
+            return Ok("Student created Successfully");
+        }
+        catch (Exception e)
+        {
+            return BadRequest(e.Message);
+        }
+    }
+    
 
-        Students.Add(student);
-        return Ok(student);
+    [HttpGet("/api/student/{id}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        try
+        {
+            var student = await _studentRepository.GetByIdAsync(id);
+            
+            if (student == null)
+            {
+                return NotFound("Student not found");
+            }
+            return Ok(student);
+
+        }
+        catch (Exception e)
+        {
+            return BadRequest(e.Message);
+        }
     }
 
     [HttpGet("/api/student")]
-    public IActionResult GetAll([FromQuery] StudentFilterDto filter)
+    public async Task<IActionResult> GetAll([FromQuery] StudentFilterDto filter)
     {
-        var students = Students.Where(x =>
-            (string.IsNullOrEmpty(filter.FirstName) || x.FirstName.Contains(filter.FirstName)) &&
-            (string.IsNullOrEmpty(filter.LastName) || x.LastName.Contains(filter.LastName))
-        ).ToList();
-        return Ok(students);
-    }
-
-    [HttpGet("/api/student/{id}")]
-    public IActionResult GetById(int id)
-    {
-        var student = Students.FirstOrDefault(x => x.Id == id);
-        if (student == null)
+        try
         {
-            return NotFound();
+            var students = await _studentRepository.GetAllAsync(filter.FirstName);
+            return Ok(students);
+
         }
-        return Ok(student);
+        catch (Exception e)
+        {
+            return BadRequest(e.Message);
+        }
     }
 
     [HttpPut("/api/student/{id}")]
-    public IActionResult Update(int id, [FromBody] StudentDto studentDto)
+    public async Task<IActionResult> Update(int id, [FromBody] StudentDto studentDto)
     {
-        var existingStudent = Students.FirstOrDefault(x => x.Id == id);
-        if (existingStudent == null)
+        try
         {
-            return NotFound();
-        }
+            var existingStudent = await _studentRepository.GetByIdAsync(id);
+            if (existingStudent == null)
+            {
+                return NotFound("Student not found");
+            }
 
-        existingStudent.FirstName = studentDto.FirstName;
-        existingStudent.LastName = studentDto.LastName;
-        existingStudent.Email = studentDto.Email;
-        
-        return Ok("Student updated successfully");
+            await _studentService.UpdateAsync(id, studentDto);
+            return Ok("Student updated successfully");
+        }
+        catch (Exception e)
+        {
+            return BadRequest(e.Message);
+        }
     }
+
 
     [HttpDelete("/api/student/{id}")]
-    public IActionResult Delete(int id)
+    public async Task<IActionResult> Delete(int id)
     {
-        var student = Students.FirstOrDefault(x => x.Id == id);
-        if (student == null)
+        try
         {
-            return NotFound();
-        }
+            var existingStudent = await _studentRepository.GetByIdAsync(id);
+            if (existingStudent == null)
+            {
+                return NotFound("Student not found");
+            }
 
-        Students.Remove(student);
-        return Ok("Student deleted successfully");
+            await _studentService.DeleteAsync(id);
+            return Ok("Student deleted successfully");
+        }
+        catch (Exception e)
+        {
+            return BadRequest(e.Message);
+        }
     }
+
 }
 
 public class StudentFilterDto
@@ -81,8 +122,9 @@ public class StudentFilterDto
 public class StudentDto
 {
     public string FirstName { get; set; }
-    public string LastName { get; set; }
     public string Email { get; set; }
+    public string Phone { get; set; }
+    public string Address { get; set; }
     
 }
 
